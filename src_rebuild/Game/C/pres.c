@@ -5,6 +5,14 @@
 
 #include <STRINGS.H>
 
+#ifndef PSX
+#include "../utils/targa.h"
+
+TextureID g_HiresFontTexture = 0;
+TextureID g_HiresDigitsTexture = 0;
+
+#endif
+
 extern TEXTURE_DETAILS digit_texture;
 
 FONT_DIGIT fontDigit[] = {
@@ -169,6 +177,31 @@ void LoadFont(char *buffer)
 	LoadImage(&fontclutpos, (u_long *)file);
 	LoadImage(&dest, (u_long *)(file + 32));
 
+#ifndef PSX
+	{
+		u_char* data;
+		
+		int width, height, bpp;
+		if (LoadTGAImage("DRIVER2\\GFX\\font2.tga", &data, width, height, bpp))
+		{
+			g_HiresFontTexture = GR_CreateRGBATexture(width, height, data);
+			delete[] data;
+
+			for (int i = 0; i < 128; i++)
+			{
+				fontinfo[i].y += 46;
+				//fontinfo[i].x -= 1;
+			}
+		}
+
+		if (LoadTGAImage("DRIVER2\\GFX\\digits.tga", &data, width, height, bpp))
+		{
+			g_HiresDigitsTexture = GR_CreateRGBATexture(width, height, data);
+			delete[] data;
+		}
+	}
+#endif
+
 	DrawSync(0);
 }
 
@@ -235,8 +268,21 @@ int PrintString(char *string, int x, int y)
 
 	font = (SPRT *)current->primptr;
 	
-	if (showMap != 0)
-		font = (SPRT *)SetFontTPage(font);
+	if (showMap)
+	{
+		font = (SPRT*)SetFontTPage(font);
+	}
+#ifndef PSX
+	else if (g_HiresFontTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, 0, 0, 0);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+		font = (SPRT*)current->primptr;
+	}
+#endif
 
 	chr = *string++;
 	width = x;
@@ -257,9 +303,10 @@ int PrintString(char *string, int x, int y)
 			chr = fontinfo[index].width;
 
 			setSprt(font);
-#ifdef PSX
-			setSemiTrans(font, 1);
+#ifndef PSX
+			if (g_HiresFontTexture)
 #endif
+			setSemiTrans(font, 1);
 
 			font->r0 = gFontColour.r;
 			font->g0 = gFontColour.g;
@@ -275,13 +322,13 @@ int PrintString(char *string, int x, int y)
 			
 			font->clut = fontclutid;
 
-			if (showMap == 0)
+			if (showMap)
 			{
-				addPrim(current->ot, font);
+				DrawPrim(font);
 			}
 			else 
 			{
-				DrawPrim(font);
+				addPrim(current->ot, font);
 			}
 
 			font++;
@@ -289,23 +336,37 @@ int PrintString(char *string, int x, int y)
 		}
 		else
 		{
-			if (showMap == 0)
+			if (!showMap)
 				font = (SPRT *)SetFontTPage(font);
 
 			font = (SPRT *)DrawButton(chr, font, width, y);
 			width += 24;
 
-			if (showMap != 0)
+			if (showMap)
 				font = (SPRT *)SetFontTPage(font);
 		}
 
 		chr = *string++;
 	}
 
-	if (showMap == 0)
-		current->primptr = (char *)SetFontTPage(font);
-	else
+	if (showMap)
+	{
 		DrawSync(0);
+	}
+	else
+	{
+		current->primptr = (char*)SetFontTPage(font);
+#ifndef PSX
+		if (g_HiresFontTexture)
+		{
+			DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+			SetPsyXTexture(tex, g_HiresFontTexture, 256, 46);
+
+			addPrim(current->ot, tex);
+			current->primptr += sizeof(DR_PSYX_TEX);
+		}
+#endif
+	}
 
 	return width;
 }
@@ -323,6 +384,17 @@ short PrintDigit(int x, int y, char *string)
 
 	width = x;
 	chr = *string++;
+
+#ifndef PSX
+	if (g_HiresDigitsTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, 0, 0, 0);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+	}
+#endif
 
 	font = (SPRT *)current->primptr;
 
@@ -354,9 +426,10 @@ short PrintDigit(int x, int y, char *string)
 		}
 
 		setSprt(font);
-#ifdef PSX
-		setSemiTrans(font, 1);
+#ifndef PSX
+		if (g_HiresDigitsTexture)
 #endif
+		setSemiTrans(font, 1);
 
 		font->r0 = gFontColour.r;
 		font->g0 = gFontColour.g;
@@ -386,9 +459,10 @@ short PrintDigit(int x, int y, char *string)
 
 	POLY_FT3* null = (POLY_FT3*)current->primptr;
 	setPolyFT3(null);
-#ifdef PSX
-	setSemiTrans(null, 1);
+#ifndef PSX
+	if (g_HiresDigitsTexture)
 #endif
+	setSemiTrans(null, 1);
 
 	null->x0 = -1;
 	null->y0 = -1;
@@ -400,6 +474,17 @@ short PrintDigit(int x, int y, char *string)
 	
 	addPrim(current->ot, null);
 	current->primptr += sizeof(POLY_FT3);
+
+#ifndef PSX
+	if (g_HiresDigitsTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, g_HiresDigitsTexture, 96, 59);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+	}
+#endif
 
 	return width;
 }
@@ -420,6 +505,17 @@ void PrintStringBoxed(char *string, int ix, int iy)
 	int y;
 	int index;
 	int wordcount;
+
+#ifndef PSX
+	if (g_HiresFontTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, 0, 0, 0);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+	}
+#endif
 
 	font = (SPRT *)current->primptr;
 
@@ -479,9 +575,10 @@ void PrintStringBoxed(char *string, int ix, int iy)
 	POLY_FT3* null = (POLY_FT3*)font;
 
 	setPolyFT3(null);
-#ifdef PSX
-	setSemiTrans(null, 1);
+#ifndef PSX
+	if (g_HiresFontTexture)
 #endif
+	setSemiTrans(null, 1);
 
 	null->x0 = -1;
 	null->y0 = -1;
@@ -493,8 +590,20 @@ void PrintStringBoxed(char *string, int ix, int iy)
 
 	addPrim(current->ot, null);
 	null++;
+	current->primptr = (char*)null;
 
-	current->primptr = (char *)null;
+#ifndef PSX
+	if (g_HiresFontTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, g_HiresFontTexture, 256, 46);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+	}
+#endif
+
+	
 }
 
 // [D] [T]
@@ -527,8 +636,19 @@ int PrintScaledString(int y, char *string, int scale)
 
 	font = (POLY_FT4 *)current->primptr;
 
-	if (gShowMap != 0)
+	if (gShowMap)
 		font = (POLY_FT4 *)SetFontTPage(font);
+#ifndef PSX
+	else if (g_HiresDigitsTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, 0, 0, 0);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+		font = (POLY_FT4*)current->primptr;
+	}
+#endif
 
 	width = StringWidth(string) * scale;
 	x = (320 - (width / 16)) / 2;
@@ -591,6 +711,17 @@ int PrintScaledString(int y, char *string, int scale)
 	}
 
 	current->primptr = (char*)font;
+
+#ifndef PSX
+	if (g_HiresDigitsTexture)
+	{
+		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
+		SetPsyXTexture(tex, g_HiresDigitsTexture, 96, 59);
+
+		addPrim(current->ot, tex);
+		current->primptr += sizeof(DR_PSYX_TEX);
+	}
+#endif
 
 	return x;
 }
@@ -671,9 +802,10 @@ void* SetFontTPage(void *prim)
 	POLY_FT3* null = (POLY_FT3*)prim;
 
 	setPolyFT3(null);
-#ifdef PSX
-	setSemiTrans(null, 1);
+#ifndef PSX
+	if (g_HiresFontTexture)
 #endif
+	setSemiTrans(null, 1);
 
 	null->x0 = -1;
 	null->y0 = -1;
@@ -683,13 +815,13 @@ void* SetFontTPage(void *prim)
 	null->y2 = -1;
 	null->tpage = fonttpage;
 
-	if (gShowMap == 0) 
+	if (gShowMap) 
 	{
-		addPrim(current->ot, null);
+		DrawPrim(prim);
 	}
 	else 
 	{
-		DrawPrim(prim);
+		addPrim(current->ot, null);
 	}
 
 	return null+1;

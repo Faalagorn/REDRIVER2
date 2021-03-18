@@ -518,11 +518,14 @@ void GR_ResetDevice()
 ShaderID g_gte_shader_4;
 ShaderID g_gte_shader_8;
 ShaderID g_gte_shader_16;
-uint g_bilinearFilterLoc;
+ShaderID g_gte_shader_32_override;
+
+uint u_bilinearFilter;
 
 #if defined(OGLES) || defined(RENDERER_OGL)
 GLint u_Projection;
 GLint u_Projection3D;
+GLint u_TexelSize;
 
 
 #define GPU_PACK_RG\
@@ -584,7 +587,6 @@ GLint u_Projection3D;
 	"		return packRG(color_rg);\n"\
 	"	}\n"
 
-
 #define GPU_BILINEAR_SAMPLE_FUNC \
 	"	float c_textureSize = 1;\n"\
 	"	float c_onePixel = 1;\n"\
@@ -612,10 +614,12 @@ GLint u_Projection3D;
 
 #if (VRAM_FORMAT == GL_LUMINANCE_ALPHA)
 #define GTE_FETCH_VRAM_FUNC\
+		"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"\
 		"	uniform sampler2D s_texture;\n"\
 		"	vec2 VRAM(vec2 uv) { return texture2D(s_texture, uv).ra; }\n"
 #else
 #define GPU_FETCH_VRAM_FUNC\
+		"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"\
 		"	uniform sampler2D s_texture;\n"\
 		"	vec2 VRAM(vec2 uv) { return texture2D(s_texture, uv).rg; }\n"
 #endif
@@ -660,10 +664,9 @@ GLint u_Projection3D;
 	"	}\n"
 
 #define GPU_FRAGMENT_SAMPLE_SHADER(bit) \
+	GPU_FETCH_VRAM_FUNC\
 	GPU_PACK_RG_FUNC\
 	GPU_DECODE_RG_FUNC\
-	GPU_FETCH_VRAM_FUNC\
-	"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"\
 	GPU_SAMPLE_TEXTURE_## bit ##BIT_FUNC\
 	GPU_BILINEAR_SAMPLE_FUNC\
 	GPU_NEAREST_SAMPLE_FUNC\
@@ -708,6 +711,24 @@ const char* gte_shader_16 =
 	GTE_VERTEX_SHADER
 	"#else\n"
 	GPU_FRAGMENT_SAMPLE_SHADER(16)
+	"#endif\n";
+
+const char* gte_shader_32_override = 
+	"varying vec4 v_texcoord;\n"
+	"varying vec4 v_color;\n"
+	"varying vec4 v_page_clut;\n"
+	"varying float v_z;\n"
+	"#ifdef VERTEX\n"
+	GTE_VERTEX_SHADER
+	"#else\n"
+	"	uniform sampler2D s_texture;\n"\
+	"	uniform int bilinearFilter;\n"\
+	"	uniform vec2 texelSize;\n"\
+	"	void main() {\n"\
+	"		vec2 tc = vec2(v_texcoord.x, v_texcoord.y + bilinearFilter*0.00001) * texelSize;\n"\
+	"		fragColor = texture2D(s_texture, tc);\n"\
+	GPU_DITHERING\
+	"	}\n"
 	"#endif\n";
 
 int GR_Shader_CheckShaderStatus(GLuint shader)
@@ -771,15 +792,13 @@ ShaderID GR_Shader_Compile(const char* source)
 		"precision highp float;\n"
 		"#define VERTEX\n"
 		"#define varying   out\n"
-		"#define attribute in\n"
-		"#define texture2D texture\n";
+		"#define attribute in\n";
 
 	const char* GLSL_HEADER_FRAG =
 		"#version 300 es\n"
 		"precision lowp  int;\n"
 		"precision highp float;\n"
 		"#define varying     in\n"
-		"#define texture2D   texture\n"
 		"out vec4 fragColor;\n";
 #else
 	const char* GLSL_HEADER_VERT =
@@ -788,15 +807,13 @@ ShaderID GR_Shader_Compile(const char* source)
 		"precision highp float;\n"
 		"#define VERTEX\n"
 		"#define varying   out\n"
-		"#define attribute in\n"
-		"#define texture2D texture\n";
+		"#define attribute in\n";
 
 	const char* GLSL_HEADER_FRAG =
 		"#version 140\n"
 		"precision lowp  int;\n"
 		"precision highp float;\n"
 		"#define varying     in\n"
-		"#define texture2D   texture\n"
 		"out vec4 fragColor;\n";
 #endif
 
@@ -852,8 +869,9 @@ ShaderID GR_Shader_Compile(const char* source)
 		eprinterr("Failed to link Shader!\n");
 
 	GLint sampler = 0;
+	GLint loc = glGetUniformLocation(program, "s_texture");
 	glUseProgram(program);
-	glUniform1iv(glGetUniformLocation(program, "s_texture"), 1, &sampler);
+	glUniform1iv(loc, 1, &sampler);
 	glUseProgram(0);
 
 	return program;
@@ -890,6 +908,8 @@ TextureID GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/
 	glBindTexture(GL_TEXTURE_2D, newTexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -902,10 +922,12 @@ void GR_InitialisePSXShaders()
 	g_gte_shader_4 = GR_Shader_Compile(gte_shader_4);
 	g_gte_shader_8 = GR_Shader_Compile(gte_shader_8);
 	g_gte_shader_16 = GR_Shader_Compile(gte_shader_16);
+	g_gte_shader_32_override = GR_Shader_Compile(gte_shader_32_override);
 
 #if defined(RENDERER_OGL) || defined(OGLES)
-	g_bilinearFilterLoc = glGetUniformLocation(g_gte_shader_4, "bilinearFilter");
+	u_bilinearFilter = glGetUniformLocation(g_gte_shader_4, "bilinearFilter");
 	u_Projection = glGetUniformLocation(g_gte_shader_4, "Projection");
+	u_TexelSize = glGetUniformLocation(g_gte_shader_32_override, "texelSize");
 #ifdef USE_PGXP
 	u_Projection3D = glGetUniformLocation(g_gte_shader_4, "Projection3D");
 #endif
@@ -1189,6 +1211,10 @@ void GR_SetShader(const ShaderID& shader)
 	}
 }
 
+void GR_SetOverrideTextureSize(int width, int height)
+{
+	glUniform2f(u_TexelSize, 1.0f / (float)width, 1.0f / (float)height);
+}
 
 void GR_SetTexture(TextureID texture, TexFormat texFormat)
 {
@@ -1203,6 +1229,10 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 	case TF_16_BIT:
 		GR_SetShader(g_gte_shader_16);
 		break;
+	// FIXME: 24 bit image support?
+	case TF_32_BIT_OVERRIDE:
+		GR_SetShader(g_gte_shader_32_override);
+		break;
 	}
 
 	if (g_texturelessMode) {
@@ -1215,7 +1245,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 
 #if defined(RENDERER_OGL) || defined(OGLES)
 	glBindTexture(GL_TEXTURE_2D, texture);
-	glUniform1i(g_bilinearFilterLoc, g_bilinearFiltering);
+	glUniform1i(u_bilinearFilter, g_bilinearFiltering);
 #endif
 
 	g_lastBoundTexture = texture;
@@ -1662,6 +1692,11 @@ void GR_SetBlendMode(BlendMode blendMode)
 		break;
 	case BM_ADD_QUATER_SOURCE:
 		glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE);
+		glBlendEquation(GL_FUNC_ADD);
+		GR_EnableDepth(0);
+		break;
+	case BM_ALPHA:
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glBlendEquation(GL_FUNC_ADD);
 		GR_EnableDepth(0);
 		break;

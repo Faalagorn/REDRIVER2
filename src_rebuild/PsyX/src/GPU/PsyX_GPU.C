@@ -29,6 +29,11 @@ OT_TAG prim_terminator = { -1, 0 }; // P_TAG with zero length
 
 DISPENV activeDispEnv;
 DRAWENV activeDrawEnv;
+
+TextureID overrideTexture = 0;
+int overrideTextureWidth = 0;
+int overrideTextureHeight = 0;
+
 int g_GPUDisabledState = 0;
 
 struct GPUDrawSplit
@@ -454,19 +459,21 @@ void MakeTexcoordRect(struct GrVertex* vertex, unsigned char* uv, short page, sh
 	vertex[3].page = page;
 	vertex[3].clut = clut;
 
+	float tcOfs = overrideTexture != 0 ? -0.5f : -1.0f;
+
 	if (g_bilinearFiltering)
 	{
-		vertex[0].tcx = -1;
-		vertex[0].tcy = -1;
+		vertex[0].tcx = tcOfs;
+		vertex[0].tcy = tcOfs;
 
-		vertex[1].tcx = -1;
-		vertex[1].tcy = -1;
+		vertex[1].tcx = tcOfs;
+		vertex[1].tcy = tcOfs;
 
-		vertex[2].tcx = -1;
-		vertex[2].tcy = -1;
+		vertex[2].tcx = tcOfs;
+		vertex[2].tcy = tcOfs;
 
-		vertex[3].tcx = -1;
-		vertex[3].tcy = -1;
+		vertex[3].tcx = tcOfs;
+		vertex[3].tcy = tcOfs;
 	}
 }
 
@@ -661,18 +668,35 @@ void TriangulateQuad()
 
 //------------------------------------------------------------------------------------------------------------------------
 
-void AddSplit(bool semiTrans, TextureID textureId)
+void AddSplit(bool semiTrans, bool textured)
 {
-	int tpage = activeDrawEnv.tpage;
-	GPUDrawSplit& curSplit = g_splits[g_splitIndex];
+	TextureID activeTexture;
+	int tpage;
+
+	if (textured)
+		activeTexture = g_vramTexture;
+	else
+		activeTexture = g_whiteTexture;
+
+	tpage = activeDrawEnv.tpage;
 
 	BlendMode blendMode = semiTrans ? GET_TPAGE_BLEND(tpage) : BM_NONE;
 	TexFormat texFormat = GET_TPAGE_FORMAT(tpage);
 
+	if (textured && overrideTexture != 0)
+	{
+		// override texture format, zero tpage
+		texFormat = TF_32_BIT_OVERRIDE;
+		blendMode = BM_ALPHA;
+		activeTexture = overrideTexture;
+	}
+
+	GPUDrawSplit& curSplit = g_splits[g_splitIndex];
+
 	// FIXME: compare drawing environment too?
 	if (curSplit.blendMode == blendMode &&
 		curSplit.texFormat == texFormat &&
-		curSplit.textureId == textureId &&
+		curSplit.textureId == activeTexture &&
 		curSplit.drawenv.clip.x == activeDrawEnv.clip.x &&
 		curSplit.drawenv.clip.y == activeDrawEnv.clip.y &&
 		curSplit.drawenv.clip.w == activeDrawEnv.clip.w &&
@@ -688,9 +712,12 @@ void AddSplit(bool semiTrans, TextureID textureId)
 
 	split.blendMode = blendMode;
 	split.texFormat = texFormat;
-	split.textureId = textureId;
+	split.textureId = activeTexture;
 	split.drawenv = activeDrawEnv;
 	split.dispenv = activeDispEnv;
+
+	split.drawenv.tw.w = overrideTextureWidth;
+	split.drawenv.tw.h = overrideTextureHeight;
 
 	split.startVertex = g_vertexIndex;
 	split.numVerts = 0;
@@ -699,6 +726,9 @@ void AddSplit(bool semiTrans, TextureID textureId)
 void DrawSplit(const GPUDrawSplit& split)
 {
 	GR_SetTexture(split.textureId, split.texFormat);
+
+	if (split.texFormat == TF_32_BIT_OVERRIDE)
+		GR_SetOverrideTextureSize(split.drawenv.tw.w, split.drawenv.tw.h);
 
 	GR_SetupClipMode(split.drawenv.clip, split.drawenv.dfe);
 	GR_SetOffscreenState(split.drawenv.clip, !split.drawenv.dfe);
@@ -855,7 +885,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		POLY_F3* poly = (POLY_F3*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gte_index);
 		MakeTexcoordTriangleZero(&g_vertexBuffer[g_vertexIndex], 0);
@@ -876,7 +906,7 @@ int ParsePrimitive(uintptr_t primPtr)
 		// It is an official hack from SCE devs to not use DR_TPAGE and instead use null polygon
 		if (!IsNull(poly))
 		{
-			AddSplit(semi_transparent, g_vramTexture);
+			AddSplit(semi_transparent, true);
 
 			MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gte_index);
 			MakeTexcoordTriangle(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
@@ -895,7 +925,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		POLY_F4* poly = (POLY_F4*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gte_index);
 		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
@@ -914,7 +944,7 @@ int ParsePrimitive(uintptr_t primPtr)
 		POLY_FT4* poly = (POLY_FT4*)pTag;
 		activeDrawEnv.tpage = poly->tpage;
 
-		AddSplit(semi_transparent, g_vramTexture);
+		AddSplit(semi_transparent, true);
 
 		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gte_index);
 		MakeTexcoordQuad(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
@@ -933,7 +963,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		POLY_G3* poly = (POLY_G3*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gte_index);
 		MakeTexcoordTriangleZero(&g_vertexBuffer[g_vertexIndex], 1);
@@ -951,7 +981,7 @@ int ParsePrimitive(uintptr_t primPtr)
 		POLY_GT3* poly = (POLY_GT3*)pTag;
 		activeDrawEnv.tpage = poly->tpage;
 
-		AddSplit(semi_transparent, g_vramTexture);
+		AddSplit(semi_transparent, true);
 
 		MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gte_index);
 		MakeTexcoordTriangle(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
@@ -968,7 +998,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		POLY_G4* poly = (POLY_G4*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gte_index);
 		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 1);
@@ -988,7 +1018,7 @@ int ParsePrimitive(uintptr_t primPtr)
 		POLY_GT4* poly = (POLY_GT4*)pTag;
 		activeDrawEnv.tpage = poly->tpage;
 
-		AddSplit(semi_transparent, g_vramTexture);
+		AddSplit(semi_transparent, true);
 
 		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gte_index);
 		MakeTexcoordQuad(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
@@ -1007,7 +1037,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		LINE_F2* poly = (LINE_F2*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		VERTTYPE* p0 = &poly->x0;
 		VERTTYPE* p1 = &poly->x1;
@@ -1032,7 +1062,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		LINE_F3* poly = (LINE_F3*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		{
 			VERTTYPE* p0 = &poly->x0;
@@ -1079,7 +1109,7 @@ int ParsePrimitive(uintptr_t primPtr)
 		int i;
 		LINE_F4* poly = (LINE_F4*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		{
 			VERTTYPE* p0 = &poly->x0;
@@ -1144,7 +1174,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		LINE_G2* poly = (LINE_G2*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		VERTTYPE* p0 = &poly->x0;
 		VERTTYPE* p1 = &poly->x1;
@@ -1169,7 +1199,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		TILE* poly = (TILE*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, poly->w, poly->h, gte_index);
 		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
@@ -1189,7 +1219,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		SPRT* poly = (SPRT*)pTag;
 
-		AddSplit(semi_transparent, g_vramTexture);
+		AddSplit(semi_transparent, true);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, poly->w, poly->h, gte_index);
 		MakeTexcoordRect(&g_vertexBuffer[g_vertexIndex], &poly->u0, activeDrawEnv.tpage, poly->clut, poly->w, poly->h);
@@ -1208,7 +1238,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		TILE_1* poly = (TILE_1*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 1, 1, gte_index);
 		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
@@ -1227,7 +1257,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		TILE_8* poly = (TILE_8*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 8, 8, gte_index);
 		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
@@ -1246,7 +1276,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		SPRT_8* poly = (SPRT_8*)pTag;
 
-		AddSplit(semi_transparent, g_vramTexture);
+		AddSplit(semi_transparent, true);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 8, 8, gte_index);
 		MakeTexcoordRect(&g_vertexBuffer[g_vertexIndex], &poly->u0, activeDrawEnv.tpage, poly->clut, 8, 8);
@@ -1265,7 +1295,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		TILE_16* poly = (TILE_16*)pTag;
 
-		AddSplit(semi_transparent, g_whiteTexture);
+		AddSplit(semi_transparent, false);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 16, 16, gte_index);
 		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
@@ -1284,7 +1314,7 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		SPRT_16* poly = (SPRT_16*)pTag;
 
-		AddSplit(semi_transparent, g_vramTexture);
+		AddSplit(semi_transparent, true);
 
 		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 16, 16, gte_index);
 		MakeTexcoordRect(&g_vertexBuffer[g_vertexIndex], &poly->u0, activeDrawEnv.tpage, poly->clut, 16, 16);
@@ -1318,6 +1348,13 @@ int ParsePrimitive(uintptr_t primPtr)
 	{
 		// [A] Psy-X custom texture packet
 		DR_PSYX_TEX* drtex = (DR_PSYX_TEX*)pTag;
+
+		// TODO: 0xB1, 0xB2 etc for other properties like DR_ENV has
+
+		overrideTexture = drtex->code[0] & 0xFFFFFF;
+		overrideTextureWidth = drtex->code[1] & 0xFFF;
+		overrideTextureHeight = drtex->code[1] >> 16 & 0xFFF;
+
 		break;
 	}
 	case 0xE0:  // DR_ENV commands

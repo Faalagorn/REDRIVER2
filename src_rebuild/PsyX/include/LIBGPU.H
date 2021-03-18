@@ -636,7 +636,7 @@ typedef struct {
 
 typedef struct {
 	DECLARE_P_ADDR
-	u_long  code[1];
+	u_long  code[2];
 } DR_PSYX_TEX;
 
 /*
@@ -834,7 +834,7 @@ extern void GetDrawEnv2(DR_ENV *p);
 * PSY-X commands
 */
 
-extern void SetPsyXTexture(DR_PSYX_TEX *p, uint grTextureId);
+extern void SetPsyXTexture(DR_PSYX_TEX *p, uint grTextureId, int width, int height);
 
 extern DISPENV activeDispEnv;
 extern DRAWENV activeDrawEnv;

@@ -36,6 +36,8 @@ int overrideTextureHeight = 0;
 
 int g_GPUDisabledState = 0;
 
+extern int g_textureOverrideEnable;
+
 struct GPUDrawSplit
 {
 	DRAWENV			drawenv;
@@ -459,7 +461,7 @@ void MakeTexcoordRect(struct GrVertex* vertex, unsigned char* uv, short page, sh
 	vertex[3].page = page;
 	vertex[3].clut = clut;
 
-	float tcOfs = overrideTexture != 0 ? -0.5f : -1.0f;
+	float tcOfs = (g_textureOverrideEnable && overrideTexture) ? -0.5f : -1.0f;
 
 	if (g_bilinearFiltering)
 	{
@@ -683,11 +685,11 @@ void AddSplit(bool semiTrans, bool textured)
 	BlendMode blendMode = semiTrans ? GET_TPAGE_BLEND(tpage) : BM_NONE;
 	TexFormat texFormat = GET_TPAGE_FORMAT(tpage);
 
-	if (textured && overrideTexture != 0)
+	if (textured && g_textureOverrideEnable && overrideTexture != 0)
 	{
 		// override texture format, zero tpage
 		texFormat = TF_32_BIT_OVERRIDE;
-		blendMode = BM_ALPHA;
+		blendMode = BM_ALPHA; // TODO: modes other than alpha
 		activeTexture = overrideTexture;
 	}
 

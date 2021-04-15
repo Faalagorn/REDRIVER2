@@ -186,12 +186,6 @@ void LoadFont(char *buffer)
 		{
 			g_HiresFontTexture = GR_CreateRGBATexture(width, height, data);
 			delete[] data;
-
-			for (int i = 0; i < 128; i++)
-			{
-				fontinfo[i].y += 46;
-				//fontinfo[i].x -= 1;
-			}
 		}
 
 		if (LoadTGAImage("DRIVER2\\GFX\\digits.tga", &data, width, height, bpp))
@@ -253,6 +247,8 @@ void SetCLUT16Flags(ushort clutID, ushort mask, char transparent)
 // MAP.C ????
 extern int gShowMap;
 
+extern int g_textureOverrideEnable;
+
 // [D] [T]
 int PrintString(char *string, int x, int y)
 {
@@ -304,7 +300,7 @@ int PrintString(char *string, int x, int y)
 
 			setSprt(font);
 #ifndef PSX
-			if (g_HiresFontTexture)
+			if (g_HiresFontTexture && g_textureOverrideEnable)
 #endif
 			setSemiTrans(font, 1);
 
@@ -315,7 +311,12 @@ int PrintString(char *string, int x, int y)
 			font->x0 = width;
 			font->y0 = fontinfo[index].offy + y;
 			font->u0 = fontinfo[index].x;
-			font->v0 = fontinfo[index].y - 46;
+			font->v0 = fontinfo[index].y;
+
+#ifndef PSX
+			if (!g_textureOverrideEnable)
+#endif
+				font->v0 -= 46;
 			
 			font->w = chr;
 			font->h = fontinfo[index].height;
@@ -556,7 +557,13 @@ void PrintStringBoxed(char *string, int ix, int iy)
 
 					setRGB0(font, gFontColour.r, gFontColour.g, gFontColour.b);
 					setXY0(font, x, y + pFontInfo->offy);
-					setUV0(font, pFontInfo->x, pFontInfo->y - 46);
+					setUV0(font, pFontInfo->x, pFontInfo->y);
+
+#ifndef PSX
+					if (!g_HiresFontTexture || !g_textureOverrideEnable)
+#endif
+						font->v0 -= 46;
+					
 					setWH(font, pFontInfo->width, pFontInfo->height);
 					
 					font->clut = fontclutid;
@@ -576,7 +583,7 @@ void PrintStringBoxed(char *string, int ix, int iy)
 
 	setPolyFT3(null);
 #ifndef PSX
-	if (g_HiresFontTexture)
+	if (g_HiresFontTexture && g_textureOverrideEnable)
 #endif
 	setSemiTrans(null, 1);
 

@@ -633,6 +633,7 @@ GameDebugMouseHandlerFunc gameDebugMouse = NULL;
 GameOnTextInputHandler gameOnTextInput = NULL;
 
 int g_activeKeyboardControllers = 0x1;
+int g_textureOverrideEnable = 1;
 int g_altKeyState = 0;
 
 void PsyX_Sys_DoPollEvent()
@@ -854,6 +855,9 @@ void PsyX_Sys_DoDebugKeys(int nKey, bool down)
 			break;
 		case SDL_SCANCODE_F6:
 			g_pgxpZBuffer ^= 1;
+			break;
+		case SDL_SCANCODE_F8:
+			g_textureOverrideEnable ^= 1;
 			break;
 		}
 	}

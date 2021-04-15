@@ -168,9 +168,9 @@ int InitCar(CAR_DATA* cp, int direction, LONGVECTOR4* startPos, unsigned char co
 // [D] [T]
 CAR_DATA* FindClosestCar(int x, int y, int z, int* distToCarSq)
 {
-	uint distSq;
+	u_int distSq;
 	CAR_DATA* lcp;
-	uint retDistSq;
+	u_int retDistSq;
 	CAR_DATA* retCar;
 	int dx; // $a0
 	int dz; // $v1
@@ -1101,7 +1101,7 @@ int CheckChangeLanes(DRIVER2_STRAIGHT* straight, DRIVER2_CURVE* curve, int distA
 	CAR_COSMETICS* car_cos;
 	int dx;
 	int dz;
-	uint theta;
+	u_int theta;
 	int length;
 	CAR_DATA* lcp;
 
@@ -1567,7 +1567,7 @@ int InitCivState(CAR_DATA * cp, EXTRA_CIV_DATA * extraData)
 	}
 
 	if (extraData == NULL)
-		cs->currentRoad = GetSurfaceIndex((VECTOR*)(cp->hd).where.t);
+		cs->currentRoad = GetSurfaceIndex((VECTOR*)cp->hd.where.t);
 	else
 		cs->currentRoad = extraData->surfInd;
 
@@ -1958,7 +1958,7 @@ int PingInCivCar(int minPingInDist)
 	int lane;
 	int i;
 	u_char cookieCountStart;
-	uint retDistSq;
+	u_int retDistSq;
 	unsigned char* slot;
 
 	//straight = NULL;
@@ -2401,7 +2401,7 @@ int PingInCivCar(int minPingInDist)
 		if (carCnt->controlType != CONTROL_TYPE_NONE)
 		{
 			int dx, dy, dz;
-			uint sqDist;
+			u_int sqDist;
 
 			dy = randomLoc.vy - carCnt->hd.where.t[1];
 			dy = ABS(dy);
@@ -2527,7 +2527,9 @@ int CivAccelTrafficRules(CAR_DATA * cp, int* distToNode)
 	lbody = car_cos->colBox.vz;
 	wbody = car_cos->colBox.vx;
 
-	if (cp->id == 1 && (cp->ai.c.carMustDie == 1))
+	// why only first car must die?
+	// P.S. it's the only one with the music
+	if (cp->id == 1 && cp->ai.c.carMustDie == 1)
 	{
 		cp->ai.c.thrustState = 3;
 		cp->ai.c.ctrlState = 9;

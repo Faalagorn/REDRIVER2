@@ -749,13 +749,10 @@ struct DENTUVS
 
 struct HUBCAP
 {
-	int Present[4];
-	VECTOR Offset[4];
 	MATRIX Orientation;
-	MATRIX LocalOrientation;
 	VECTOR Position;
-	VECTOR Direction;
-	float Height;
+	SVECTOR Direction;
+	int Rotation;
 	int Duration;
 };
 
@@ -813,18 +810,18 @@ typedef struct _HANDLING_DATA
 	MATRIX drawCarMat;
 	LONGVECTOR4 acc;
 	LONGVECTOR4 aacc;
+	WHEEL wheel[4];
 	int wheel_speed;
 	int speed;
 	int direction;
-	char gear;
-	char changingGear;
-	char mayBeColliding;
-	char autoBrake;
-	WHEEL wheel[4];
-	short revs;
-	VECTOR shadowPoints[4];
 	int front_vel;
 	int rear_vel;
+	int mayBeColliding;		// [A] now used as a bitfield to create collision pairs
+	short revs;
+	char gear;
+	char changingGear;
+	char autoBrake;
+
 	OrientedBox oBox;
 } HANDLING_DATA;
 
@@ -991,7 +988,6 @@ typedef struct _CAR_DATA
 	int lastPad;
 } CAR_DATA;
 
-// UNUSED
 typedef struct _COP_DATA
 {
 	int speed;
@@ -1265,6 +1261,8 @@ enum TargetFlags
 
 	TARGET_FLAG_POINT_ON_BOAT				= 0x100000,
 	TARGET_FLAG_POINT_STOP_COPS_TRIGGER		= 0x200000,
+	//0x400000,
+	TARGET_FLAG_POINT_PLAYER_MUSTHAVE_CAR	= 0x800000,
 
 	// car target properties
 	TARGET_FLAG_CAR_SAVED					= 0x10,
@@ -1288,8 +1286,8 @@ enum CarTargetFlags
 	CARTARGET_FLAG_ESCAPE_TARGET		= 0x40,
 	CARTARGET_FLAG_CnR_TARGET			= 0x50,
 
-	CARTARGET_FLAG_FLIPPED				= 0x40000,
 	CARTARGET_FLAG_TO_BE_STOLEN			= 0x10000,
+	CARTARGET_FLAG_FLIPPED				= 0x40000,
 	CARTARGET_FLAG_DAMAGED				= 0x80000,
 	CARTARGET_FLAG_PED_ESCAPES			= 0x100000,
 	CARTARGET_FLAG_DETONATOR			= 0x200000,		// has a detonator timer
@@ -1365,7 +1363,7 @@ typedef struct _TARGET
 					int loseMessage;		// data 14
 				} event;
 			};
-		};
+		} s;
 	};
 } MS_TARGET;
 
@@ -1499,7 +1497,7 @@ struct FELONY_DATA
 //---------------------------------------------------------------------------------------
 // TODO: PEDEST.H
 
-enum PED_ACTION_TYPE : char
+enum PED_ACTION_TYPE //: char
 {
 	PED_ACTION_WALK = 0,
 	PED_ACTION_RUN = 1,
@@ -1519,7 +1517,7 @@ enum PED_ACTION_TYPE : char
 	PED_ACTION_STOPPING = 15,
 };
 
-enum PED_MODEL_TYPES : char
+enum PED_MODEL_TYPES //: char
 {
 	TANNER_MODEL = 0,
 	OTHER_MODEL = 1,
@@ -1536,7 +1534,7 @@ typedef struct PEDESTRIAN
 	pedFunc fpRestState;
 	pedFunc fpAgitatedState;
 	char padId;
-	PED_MODEL_TYPES pedType;
+	char pedType;
 	VECTOR_NOPAD position;
 	SVECTOR dir;
 	SVECTOR velocity;
@@ -1554,7 +1552,7 @@ typedef struct PEDESTRIAN
 	char finished_turn;
 	char seat_index;
 	u_char pallet;
-	PED_ACTION_TYPE type;
+	char type;
 } *LPPEDESTRIAN;
 
 struct CAR_COLLISION_BOX
@@ -2128,7 +2126,7 @@ struct MVERTEX
 		struct {
 			u_char u0;
 			u_char v0;
-		};
+		}s;
 	}uv;
 };
 

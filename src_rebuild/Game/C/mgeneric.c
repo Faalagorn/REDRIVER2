@@ -103,10 +103,10 @@ void StoreCarPosition(MS_TARGET *target, SAVED_CAR_POS *data)
 	CAR_DATA* cp;
 
 	// if target is a swapable, make sure it gonna be previous player car
-	if (target->car.flags & CARTARGET_FLAG_BACK_TO_PLAYERCAR)
+	if (target->s.car.flags & CARTARGET_FLAG_BACK_TO_PLAYERCAR)
 		slot = Mission.PhantomCarId;
 	else
-		slot = target->car.slot;
+		slot = target->s.car.slot;
 
 	if (slot == -1)
 		return;
@@ -136,7 +136,7 @@ void StoreCarPosition(MS_TARGET *target, SAVED_CAR_POS *data)
 
 	data->active = 1;
 	
-	if (target->target_flags & TARGET_FLAG_CAR_SWAPPED)
+	if (target->s.target_flags & TARGET_FLAG_CAR_SWAPPED)
 		data->active |= 0x80;
 }
 
@@ -225,13 +225,13 @@ void StoreEndData(void)
 	numStored = 0;
 	StorePlayerPosition(&MissionEndData.PlayerPos);
 
-	for(i = 0; i < 16 && numStored < 6; i++)
+	for(i = 0; i < MAX_MISSION_TARGETS && numStored < 6; i++)
 	{
 		target = &MissionTargets[i];
 		carpos = &MissionEndData.CarPos[numStored];
 
 		if (target->type == Target_Car &&
-			(target->target_flags & TARGET_FLAG_CAR_SAVED))
+			(target->s.target_flags & TARGET_FLAG_CAR_SAVED))
 		{
 			StoreCarPosition(target, carpos);
 

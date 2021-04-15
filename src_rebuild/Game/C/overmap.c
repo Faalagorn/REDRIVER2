@@ -411,12 +411,12 @@ void ProcessOverlayLump(char *lump_ptr, int lump_size)
 		i++;
 	} while (i < 16);
 
-	MALLOC_BEGIN()
+	D_MALLOC_BEGIN()
 
 	MapBitMaps = D_MALLOC(lump_size);
 	memcpy(MapBitMaps, lump_ptr, lump_size);
 
-	MALLOC_END();
+	D_MALLOC_END();
 
 	// load CLUT
 	LoadImage(&mapclutpos, (u_long *)(MapBitMaps + 512));
@@ -645,7 +645,7 @@ void DrawCompass(void)
 void DrawBigCompass(VECTOR *root, int angle)
 {
 	int i;
-	uint ang2;
+	u_int ang2;
 	LINE_G2 *lineg2;
 	int ang;
 	int ang3;

@@ -269,7 +269,7 @@ int PrintString(char *string, int x, int y)
 		font = (SPRT*)SetFontTPage(font);
 	}
 #ifndef PSX
-	else if (g_HiresFontTexture)
+	else if (g_HiresFontTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, 0, 0, 0);
@@ -358,7 +358,7 @@ int PrintString(char *string, int x, int y)
 	{
 		current->primptr = (char*)SetFontTPage(font);
 #ifndef PSX
-		if (g_HiresFontTexture)
+		if (g_HiresFontTexture && g_textureOverrideEnable)
 		{
 			DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 			SetPsyXTexture(tex, g_HiresFontTexture, 256, 46);
@@ -387,7 +387,7 @@ short PrintDigit(int x, int y, char *string)
 	chr = *string++;
 
 #ifndef PSX
-	if (g_HiresDigitsTexture)
+	if (g_HiresDigitsTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, 0, 0, 0);
@@ -428,7 +428,7 @@ short PrintDigit(int x, int y, char *string)
 
 		setSprt(font);
 #ifndef PSX
-		if (g_HiresDigitsTexture)
+		if (g_HiresDigitsTexture && g_textureOverrideEnable)
 #endif
 		setSemiTrans(font, 1);
 
@@ -461,7 +461,7 @@ short PrintDigit(int x, int y, char *string)
 	POLY_FT3* null = (POLY_FT3*)current->primptr;
 	setPolyFT3(null);
 #ifndef PSX
-	if (g_HiresDigitsTexture)
+	if (g_HiresDigitsTexture && g_textureOverrideEnable)
 #endif
 	setSemiTrans(null, 1);
 
@@ -477,7 +477,7 @@ short PrintDigit(int x, int y, char *string)
 	current->primptr += sizeof(POLY_FT3);
 
 #ifndef PSX
-	if (g_HiresDigitsTexture)
+	if (g_HiresDigitsTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, g_HiresDigitsTexture, 96, 59);
@@ -508,7 +508,7 @@ void PrintStringBoxed(char *string, int ix, int iy)
 	int wordcount;
 
 #ifndef PSX
-	if (g_HiresFontTexture)
+	if (g_HiresFontTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, 0, 0, 0);
@@ -600,7 +600,7 @@ void PrintStringBoxed(char *string, int ix, int iy)
 	current->primptr = (char*)null;
 
 #ifndef PSX
-	if (g_HiresFontTexture)
+	if (g_HiresFontTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, g_HiresFontTexture, 256, 46);
@@ -646,7 +646,7 @@ int PrintScaledString(int y, char *string, int scale)
 	if (gShowMap)
 		font = (POLY_FT4 *)SetFontTPage(font);
 #ifndef PSX
-	else if (g_HiresDigitsTexture)
+	else if (g_HiresDigitsTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, 0, 0, 0);
@@ -720,7 +720,7 @@ int PrintScaledString(int y, char *string, int scale)
 	current->primptr = (char*)font;
 
 #ifndef PSX
-	if (g_HiresDigitsTexture)
+	if (g_HiresDigitsTexture && g_textureOverrideEnable)
 	{
 		DR_PSYX_TEX* tex = (DR_PSYX_TEX*)current->primptr;
 		SetPsyXTexture(tex, g_HiresDigitsTexture, 96, 59);
@@ -810,7 +810,7 @@ void* SetFontTPage(void *prim)
 
 	setPolyFT3(null);
 #ifndef PSX
-	if (g_HiresFontTexture)
+	if (g_HiresFontTexture && g_textureOverrideEnable)
 #endif
 	setSemiTrans(null, 1);
 
